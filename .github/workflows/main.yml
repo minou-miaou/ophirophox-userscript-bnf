@@ -1,0 +1,104 @@
+name: Post
+on:
+  schedule:
+    - cron: "0 */1 * * *"
+
+  workflow_dispatch:
+
+jobs:
+
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      update_available: ${{ steps.update_available.outputs.update_status }}
+    steps:
+
+      - id: current_repo
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }} 
+
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          repository: Write/ophirofox-userscript
+          path: './ophirofox-userscript'
+          token: ${{ secrets.GITHUB_TOKEN }}
+ 
+      - name: "Get latest ophirofox version number"
+        working-directory: ophirofox-userscript
+        run: |
+          echo OPHIROFOX_VERSION_RAW=$(git describe --tags `git rev-list --tags --max-count=1`) >> $GITHUB_ENV
+          echo OPHIROFOX_VERSION=$(cut -c2- <<< $(git describe --tags `git rev-list --tags --max-count=1`)) >> $GITHUB_ENV
+
+      - id: update_available
+        run: |
+          echo CURRENT REPO RELEASE   : ${{ steps.current_repo.outputs.release }}
+          echo OPHIROFOX REPO RELEASE : ${{ env.OPHIROFOX_VERSION_RAW }}
+          if [[ ${{ steps.current_repo.outputs.release }} == ${{ env.OPHIROFOX_VERSION_RAW }} ]]; then
+            echo "No release available"
+            update_status=0
+            echo "update_status=false" >> $GITHUB_OUTPUT
+          else
+            echo "New release available"
+            update_status=1
+            echo "update_status=true" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check-version
+    if: ${{ needs.check-version.outputs.update_available == 'true' }}
+    steps:
+
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+          repository: Write/ophirofox-userscript
+          path: './ophirofox-userscript'
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Get latest ophirofox version number"
+        working-directory: ophirofox-userscript
+        run: | 
+          echo OPHIROFOX_VERSION=$(cut -c2- <<< $(git describe --tags `git rev-list --tags --max-count=1`)) >> $GITHUB_ENV
+
+      - name: Get ophirofox changelog
+        working-directory: ophirofox-userscript
+        run: git log -1 --pretty=%B | tee /tmp/changelog.txt
+
+      - name: Set autoupdate & BNF
+        working-directory: ophirofox-userscript
+        run: sed -i -e '8i \/\/ @downloadURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript\/raw\/refs\/heads\/main\/ophirofox.user.js\n\/\/ @updateURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript\/raw\/refs\/heads\/main\/ophirofox.user.js' -e 's/const universityName = "Bibliotheque nationale et universitaire de Strasbourg"/const universityName = "BNF"/' ophirofox.user.js
+
+      - name: Push to main
+        run: |
+          cp ./ophirofox-userscript/ophirofox.user.js .
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add ophirofox.user.js
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Release from Ophirofox v${{ env.OPHIROFOX_VERSION }}"
+            git push
+          fi
+          
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.OPHIROFOX_VERSION }}
+          name: Release ${{ env.OPHIROFOX_VERSION }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
+          body_path: /tmp/changelog.txt
+          files: |
+            ./ophirofox/ophirofox.user.js
+            /tmp/changelog.txt
+
