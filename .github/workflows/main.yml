@@ -74,7 +74,7 @@ jobs:
 
       - name: Set autoupdate & BNF
         working-directory: ophirofox-userscript
-        run: sed -i -e '8i \/\/ @downloadURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript\/raw\/refs\/heads\/main\/ophirofox.user.js\n\/\/ @updateURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript\/raw\/refs\/heads\/main\/ophirofox.user.js' -e 's/const universityName = "Bibliotheque nationale et universitaire de Strasbourg"/const universityName = "BNF"/' ophirofox.user.js
+        run: sed -i -e '8i \/\/ @downloadURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript-bnf\/raw\/refs\/heads\/main\/ophirofox.user.js\n\/\/ @updateURL	 https:\/\/github.com\/minou-miaou\/ophirofox-userscript-bnf\/raw\/refs\/heads\/main\/ophirofox.user.js' -e 's/const universityName = "Bibliotheque nationale et universitaire de Strasbourg"/const universityName = "BNF"/' ophirofox.user.js
 
       - name: Push to main
         run: |
